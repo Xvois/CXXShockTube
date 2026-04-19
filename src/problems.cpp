@@ -39,7 +39,9 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+#if OPENMP_AVAILABLE
 #include <omp.h>
+#endif
 
 // =========================================================================
 // Problem A: Cartesian Shock Tube
@@ -160,7 +162,9 @@ std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>
     // S = (0, 2*p/r, 0) applied at dt/2
     // Skip first cell (r ~ 0) to avoid division by zero.
     // OpenMP parallel for applies source terms to all interior cells simultaneously.
+#if OPENMP_AVAILABLE
     #pragma omp parallel for
+#endif
     for (int i = 1; i < N_ZONES - 1; ++i) {
         Primitive w = consToPrim(next_grid[i]);
         double r = X_MIN + (i + 0.5) * DX;
@@ -172,7 +176,9 @@ std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>
 
     // --- Step 2: Compute maximum wave speed (Rusanov) using parallel reduction ---
     double max_a = 0.0;
+#if OPENMP_AVAILABLE
     #pragma omp parallel for reduction(max:max_a)
+#endif
     for (int i = 0; i < (int)next_grid.size(); ++i) {
         Primitive w = consToPrim(next_grid[i]);
         double c = calculateSoundSpeed(w);
@@ -196,7 +202,9 @@ std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>
    // --- Step 4: Compute Rusanov numerical fluxes at all N_ZONES+1 interfaces ---
     // OpenMP parallel for computes fluxes at all interfaces simultaneously.
     std::vector<Conserved> F(N_ZONES + 1);
+#if OPENMP_AVAILABLE
     #pragma omp parallel for
+#endif
     for (int i = 0; i < (int)F.size(); ++i) {
         Primitive wL = consToPrim(ghost_grid[i]);
         Primitive wR = consToPrim(ghost_grid[i + 1]);
@@ -210,7 +218,9 @@ std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>
 
      // --- Step 5: Update interior cells using conservative flux difference ---
     // OpenMP parallel for updates all cells simultaneously.
+#if OPENMP_AVAILABLE
     #pragma omp parallel for
+#endif
     for (int i = 0; i < (int)next_grid.size(); ++i) {
         next_grid[i].mass     = grid[i].mass     - dtdx * (F[i + 1].mass     - F[i].mass);
         next_grid[i].mom      = grid[i].mom      - dtdx * (F[i + 1].mom      - F[i].mom);
@@ -218,7 +228,9 @@ std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>
     }
 
 // OpenMP parallel for applies remaining half-step source term.
+#if OPENMP_AVAILABLE
     #pragma omp parallel for
+#endif
     for (int i = 1; i < N_ZONES - 1; ++i) {
         Primitive w = consToPrim(next_grid[i]);
         double r = X_MIN + (i + 0.5) * DX;

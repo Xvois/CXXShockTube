@@ -15,7 +15,9 @@
 #include <cmath>
 #include <algorithm>
 
+#if OPENMP_AVAILABLE
 #include <omp.h>
+#endif
 // =========================================================================
 // CFL-limited timestep calculation
 // =========================================================================
@@ -36,6 +38,7 @@
  */
 double calculateTimeStep(const std::vector<Conserved>& grid) {
     double max_speed = 0.0;
+#if OPENMP_AVAILABLE
     #pragma omp parallel for reduction(max:max_speed)
     for (int i = 0; i < (int)grid.size(); ++i) {
         Primitive w = consToPrim(grid[i]);
@@ -43,6 +46,14 @@ double calculateTimeStep(const std::vector<Conserved>& grid) {
         double speed = std::abs(w.v) + cs;
         if (speed > max_speed) max_speed = speed;
     }
+#else
+    for (int i = 0; i < (int)grid.size(); ++i) {
+        Primitive w = consToPrim(grid[i]);
+        double cs = calculateSoundSpeed(w);
+        double speed = std::abs(w.v) + cs;
+        if (speed > max_speed) max_speed = speed;
+    }
+#endif
     // Guard against division by zero (should never happen for valid data)
     if (max_speed < 1e-12) return 1.0;
     return CFL_NUMBER * DX / max_speed;
@@ -109,7 +120,9 @@ std::vector<Conserved> updateLaxFriedrichs(const std::vector<Conserved>& grid, d
     // Indices: i=0  (left ghost - cell 0), i=1  (cell 0 - cell 1), ..., i=N_ZONES (cell N-1 - right ghost)
     // OpenMP parallel for computes fluxes at all interfaces simultaneously.
     std::vector<Conserved> F(N_ZONES + 1);
+#if OPENMP_AVAILABLE
     #pragma omp parallel for
+#endif
     for (int i = 0; i < (int)F.size(); ++i) {
         Primitive wL = consToPrim(ghost_grid[i]);
         Primitive wR = consToPrim(ghost_grid[i + 1]);
@@ -125,7 +138,9 @@ std::vector<Conserved> updateLaxFriedrichs(const std::vector<Conserved>& grid, d
     // u_i^{n+1} = u_i^n - (dt/dx) * (F_{i+1/2} - F_{i-1/2})
     // where F_{i-1/2} = F[i],  F_{i+1/2} = F[i+1]
     // OpenMP parallel for updates all cells simultaneously.
+#if OPENMP_AVAILABLE
     #pragma omp parallel for
+#endif
     for (int i = 0; i < (int)next_grid.size(); ++i) {
         next_grid[i].mass     = grid[i].mass     - dtdx * (F[i + 1].mass     - F[i].mass);
         next_grid[i].mom      = grid[i].mom      - dtdx * (F[i + 1].mom      - F[i].mom);
