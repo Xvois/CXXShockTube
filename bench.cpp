@@ -6,7 +6,7 @@
 // using the serial (build_serial) and parallel (build_parallel) builds.
 //
 // Compile standalone:
-//   g++ -std=c++20 -O2 -fopenmp-simd bench.cpp -o bench -ltbb
+//   g++ -std=c++20 -O2 bench.cpp -o bench
 //
 
 #include <iostream>

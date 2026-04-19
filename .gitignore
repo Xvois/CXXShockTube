@@ -18,7 +18,6 @@ compile_commands.json
 # Benchmarks
 bench
 bench_report.json
-performance_metrics.txt
 
 # Python
 .venv/

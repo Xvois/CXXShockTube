@@ -159,8 +159,10 @@ std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>
     // --- Step 1: Apply source term at half-time step ---
     // S = (0, 2*p/r, 0) applied at dt/2
     // Skip first cell (r ~ 0) to avoid division by zero.
-    // Parallel execution (std::execution::par_unseq) applies source terms to all interior cells simultaneously.
-    std::for_each(std::execution::par_unseq, std::begin(next_grid) + 1, std::begin(next_grid) + N_ZONES - 1,
+    // Sequential execution (std::execution::seq) applies source terms to all interior cells.
+    std::for_each(
+        std::execution::seq,
+        std::begin(next_grid) + 1, std::begin(next_grid) + N_ZONES - 1,
         [&next_grid, dt](Conserved& cell) {
             std::size_t i = &cell - next_grid.data();
             Primitive w = consToPrim(cell);
@@ -176,7 +178,7 @@ std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>
     // - binary op: std::max (combines two doubles)
     // - unary transform: converts each zone to its signal speed
     double max_a = std::transform_reduce(
-        std::execution::par_unseq,
+        std::execution::seq,
         next_grid.begin(), next_grid.end(),
         0.0,
         [](double a, double b) { return std::max(a, b); },
@@ -201,9 +203,11 @@ std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>
     ghost_grid[N_ZONES + 1] = next_grid[N_ZONES - 1];
 
    // --- Step 4: Compute Rusanov numerical fluxes at all N_ZONES+1 interfaces ---
-    // Parallel execution (std::execution::par_unseq) computes fluxes at all interfaces simultaneously.
+    // Sequential execution (std::execution::seq) computes fluxes at all interfaces.
     std::vector<Conserved> F(N_ZONES + 1);
-    std::for_each(std::execution::par_unseq, std::begin(F), std::end(F),
+    std::for_each(
+        std::execution::seq,
+        std::begin(F), std::end(F),
         [&ghost_grid, &F, max_a](Conserved& flux) {
             // Compute interface index from pointer offset (F is contiguous)
             std::size_t i = &flux - F.data();
@@ -217,9 +221,11 @@ std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>
             flux.energy   = 0.5 * (fL.energy + fR.energy) - 0.5 * max_a * (ghost_grid[i + 1].energy - ghost_grid[i].energy);
         });
 
-    // --- Step 5: Update interior cells using conservative flux difference ---
-    // Parallel execution (std::execution::par_unseq) updates all cells simultaneously.
-    std::for_each(std::execution::par_unseq, std::begin(next_grid), std::end(next_grid),
+     // --- Step 5: Update interior cells using conservative flux difference ---
+    // Sequential execution (std::execution::seq) updates all cells.
+    std::for_each(
+        std::execution::seq,
+        std::begin(next_grid), std::end(next_grid),
         [&grid, &F, dtdx, &next_grid](Conserved& cell) {
             // Compute cell index from pointer offset (next_grid is contiguous)
             std::size_t i = &cell - next_grid.data();
@@ -228,8 +234,10 @@ std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>
             cell.energy   = grid[i].energy   - dtdx * (F[i + 1].energy - F[i].energy);
         });
 
-    // --- Step 6: Apply remaining half-step of source term ---
-    std::for_each(std::execution::par_unseq, std::begin(next_grid) + 1, std::begin(next_grid) + N_ZONES - 1,
+// Sequential execution (std::execution::seq) applies remaining half-step source term.
+    std::for_each(
+        std::execution::seq,
+        std::begin(next_grid) + 1, std::begin(next_grid) + N_ZONES - 1,
         [&next_grid, dt](Conserved& cell) {
             std::size_t i = &cell - next_grid.data();
             Primitive w = consToPrim(cell);

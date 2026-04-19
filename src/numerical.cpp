@@ -24,8 +24,8 @@
 /**
  * Computes the maximum allowable timestep from the CFL condition.
  *
- * Uses C++20 parallel execution (std::execution::par_unseq) to compute
- * signal speeds across all zones simultaneously, then finds the maximum.
+ * Uses C++20 sequential execution (std::execution::seq) via transform_reduce
+ * to compute signal speeds across all zones, then finds the maximum.
  *
  * The CFL condition ensures numerical stability:
  *   dt <= CFL_NUMBER * dx / max_signal_speed
@@ -36,11 +36,11 @@
  * (trivially at rest), returns a safe default (1.0).
  */
 double calculateTimeStep(const std::vector<Conserved>& grid) {
-    // Use transform_reduce with:
+    // Use transform_reduce with sequential execution (std::execution::seq).
     // - binary op: std::max (combines two doubles)
     // - unary transform: converts each zone to its signal speed
     double max_speed = std::transform_reduce(
-        std::execution::par_unseq,
+        std::execution::seq,
         grid.begin(), grid.end(),
         0.0,
         [](double a, double b) { return std::max(a, b); },
@@ -114,9 +114,11 @@ std::vector<Conserved> updateLaxFriedrichs(const std::vector<Conserved>& grid, d
     // --- Step 3: Compute Rusanov numerical fluxes at all N_ZONES+1 interfaces ---
     // F_{i}  = flux at interface between ghost_grid[i] and ghost_grid[i+1]
     // Indices: i=0  (left ghost - cell 0), i=1  (cell 0 - cell 1), ..., i=N_ZONES (cell N-1 - right ghost)
-    // Parallel execution (std::execution::par_unseq) computes fluxes at all interfaces simultaneously.
+    // Sequential execution (std::execution::seq) computes fluxes at all interfaces.
     std::vector<Conserved> F(N_ZONES + 1);
-    std::for_each(std::execution::par_unseq, std::begin(F), std::end(F),
+    std::for_each(
+        std::execution::seq,
+        std::begin(F), std::end(F),
         [&ghost_grid, &F, max_a](Conserved& flux) {
             // Compute interface index from pointer offset (F is contiguous)
             std::size_t i = &flux - F.data();
@@ -133,8 +135,10 @@ std::vector<Conserved> updateLaxFriedrichs(const std::vector<Conserved>& grid, d
     // --- Step 4: Update interior cells using conservative flux difference ---
     // u_i^{n+1} = u_i^n - (dt/dx) * (F_{i+1/2} - F_{i-1/2})
     // where F_{i-1/2} = F[i],  F_{i+1/2} = F[i+1]
-    // Ghost cell copy at boundaries means no artificial reflection occurs.
-    std::for_each(std::execution::par_unseq, std::begin(next_grid), std::end(next_grid),
+// Sequential execution (std::execution::seq) updates all cells.
+    std::for_each(
+        std::execution::seq,
+        std::begin(next_grid), std::end(next_grid),
         [&grid, &F, dtdx, &next_grid](Conserved& cell) {
             // Compute cell index from pointer offset (next_grid is contiguous)
             std::size_t i = &cell - next_grid.data();
