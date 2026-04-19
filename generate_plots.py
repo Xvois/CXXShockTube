@@ -80,6 +80,68 @@ def plot_comparison(numeric_file, exact_file, label, solver_label, exact_label, 
     plt.close()
 
 
+def plot_wave_propagation_comparison(a_numeric_file, b_numeric_file, candidate="12345"):
+    """Plot 1x2: Wave propagation comparison (density evolution) for Problem A vs Problem B."""
+    print("Loading full simulation data for wave propagation comparison...")
+    
+    # Load full time series for both problems
+    df_a = pd.read_csv(a_numeric_file)
+    df_b = pd.read_csv(b_numeric_file)
+    times_a = sorted(df_a['time'].unique())
+    times_b = sorted(df_b['time'].unique())
+    
+    print(f"Generating wave propagation comparison ({len(times_a)} snapshots for A, {len(times_b)} for B)...")
+    
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig.suptitle("Wave Propagation: Cartesian vs Spherical Geometry",
+                 fontsize=14, fontweight='bold')
+    
+    # --- Left panel: Problem A ---
+    ax_a = axes[0]
+    ax_a.set_title("Problem A: Cartesian", fontweight='bold')
+    colors_a = plt.cm.viridis(np.linspace(0.2, 1.0, len(times_a)))
+    for i, t in enumerate(times_a):
+        data = df_a[df_a['time'] == t].copy()
+        lw = 2.5 if i == len(times_a) - 1 else 1.5
+        alpha = 0.7 if i < len(times_a) - 1 else 1.0
+        ax_a.plot(data['x'], data['density'], color=colors_a[i], linewidth=lw,
+                  alpha=alpha, label=f't = {t:.2f}' if i % 2 == 0 or i == len(times_a) - 1 else None,
+                  zorder=2 if i == len(times_a) - 1 else 1)
+    ax_a.axvline(x=0.3, color='black', linestyle=':', linewidth=1.5, alpha=0.5, label='Initial discontinuity')
+    ax_a.set_xlabel("x")
+    ax_a.set_ylabel("Density (ρ)")
+    ax_a.grid(True, alpha=0.3)
+    ax_a.set_xlim(0, 1)
+    ax_a.legend(loc='upper right', fontsize=9)
+    
+    # --- Right panel: Problem B ---
+    ax_b = axes[1]
+    ax_b.set_title("Problem B: Spherical", fontweight='bold')
+    colors_b = plt.cm.viridis(np.linspace(0.2, 1.0, len(times_b)))
+    for i, t in enumerate(times_b):
+        data = df_b[df_b['time'] == t].copy()
+        lw = 2.5 if i == len(times_b) - 1 else 1.5
+        alpha = 0.7 if i < len(times_b) - 1 else 1.0
+        ax_b.plot(data['x'], data['density'], color=colors_b[i], linewidth=lw,
+                  alpha=alpha, label=f't = {t:.2f}' if i % 2 == 0 or i == len(times_b) - 1 else None,
+                  zorder=2 if i == len(times_b) - 1 else 1)
+    ax_b.axvline(x=0.4, color='black', linestyle=':', linewidth=1.5, alpha=0.5, label='Initial discontinuity')
+    ax_b.set_xlabel("x")
+    ax_b.set_ylabel("Density (ρ)")
+    ax_b.grid(True, alpha=0.3)
+    ax_b.set_xlim(0, 1)
+    ax_b.legend(loc='upper right', fontsize=9)
+    
+    plt.tight_layout(rect=[0, 0.03, 1, 0.93])
+    output_file = f"{candidate}_wave_propagation_comparison.pdf"
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    print(f"Saved: {output_file}")
+    output_png = output_file.replace('.pdf', '.png')
+    plt.savefig(output_png, dpi=300, bbox_inches='tight')
+    print(f"Saved: {output_png}")
+    plt.close()
+
+
 def main():
     """Main entry point — generate identical plots for Problem A and Problem B."""
 
@@ -102,6 +164,10 @@ def main():
     print("\n--- Problem B: Spherical ---")
     plot_comparison(B_NUMERIC_PATH, B_EXACT_PATH,
                     "Problem B", "Spherical Solver (N=100)", "Exact Solution", CANDIDATE)
+
+    # Wave propagation comparison
+    print("\n--- Wave Propagation Comparison ---")
+    plot_wave_propagation_comparison(A_NUMERIC_PATH, B_NUMERIC_PATH, CANDIDATE)
 
     print("\n" + "=" * 55)
     print("\tALL PLOTS COMPLETE")
