@@ -13,6 +13,9 @@
 #include "analytical.h"
 
 #include <cmath>
+#include <algorithm>
+#include <execution>
+#include <iterator>
 
 // =========================================================================
 // CFL-limited timestep calculation
@@ -20,6 +23,9 @@
 
 /**
  * Computes the maximum allowable timestep from the CFL condition.
+ *
+ * Uses C++20 parallel execution (std::execution::par_unseq) to compute
+ * signal speeds across all zones simultaneously, then finds the maximum.
  *
  * The CFL condition ensures numerical stability:
  *   dt <= CFL_NUMBER * dx / max_signal_speed
@@ -30,15 +36,20 @@
  * (trivially at rest), returns a safe default (1.0).
  */
 double calculateTimeStep(const std::vector<Conserved>& grid) {
-    double max_speed = 0.0;
-    for (int i = 0; i < N_ZONES; ++i) {
-        Primitive w = consToPrim(grid[i]);
-        double cs = calculateSoundSpeed(w);
-        double signal_speed = std::abs(w.v) + cs;
-        if (signal_speed > max_speed) {
-            max_speed = signal_speed;
+    // Use transform_reduce with:
+    // - binary op: std::max (combines two doubles)
+    // - unary transform: converts each zone to its signal speed
+    double max_speed = std::transform_reduce(
+        std::execution::par_unseq,
+        grid.begin(), grid.end(),
+        0.0,
+        [](double a, double b) { return std::max(a, b); },
+        [](const Conserved& zone) {
+            Primitive w = consToPrim(zone);
+            double cs = calculateSoundSpeed(w);
+            return std::abs(w.v) + cs;
         }
-    }
+    );
     // Guard against division by zero (should never happen for valid data)
     if (max_speed < 1e-12) return 1.0;
     return CFL_NUMBER * DX / max_speed;
@@ -103,27 +114,34 @@ std::vector<Conserved> updateLaxFriedrichs(const std::vector<Conserved>& grid, d
     // --- Step 3: Compute Rusanov numerical fluxes at all N_ZONES+1 interfaces ---
     // F_{i}  = flux at interface between ghost_grid[i] and ghost_grid[i+1]
     // Indices: i=0  (left ghost - cell 0), i=1  (cell 0 - cell 1), ..., i=N_ZONES (cell N-1 - right ghost)
+    // Parallel execution (std::execution::par_unseq) computes fluxes at all interfaces simultaneously.
     std::vector<Conserved> F(N_ZONES + 1);
-    for (int i = 0; i <= N_ZONES; ++i) {
-        Primitive wL = consToPrim(ghost_grid[i]);
-        Primitive wR = consToPrim(ghost_grid[i + 1]);
-        Conserved fL = computeFlux(wL, ghost_grid[i]);
-        Conserved fR = computeFlux(wR, ghost_grid[i + 1]);
-        // Rusanov numerical flux at interface i
-        F[i].mass     = 0.5 * (fL.mass + fR.mass)     - 0.5 * max_a * (ghost_grid[i + 1].mass     - ghost_grid[i].mass);
-        F[i].mom      = 0.5 * (fL.mom + fR.mom)      - 0.5 * max_a * (ghost_grid[i + 1].mom      - ghost_grid[i].mom);
-        F[i].energy   = 0.5 * (fL.energy + fR.energy) - 0.5 * max_a * (ghost_grid[i + 1].energy - ghost_grid[i].energy);
-    }
+    std::for_each(std::execution::par_unseq, std::begin(F), std::end(F),
+        [&ghost_grid, &F, max_a](Conserved& flux) {
+            // Compute interface index from pointer offset (F is contiguous)
+            std::size_t i = &flux - F.data();
+            Primitive wL = consToPrim(ghost_grid[i]);
+            Primitive wR = consToPrim(ghost_grid[i + 1]);
+            Conserved fL = computeFlux(wL, ghost_grid[i]);
+            Conserved fR = computeFlux(wR, ghost_grid[i + 1]);
+            // Rusanov numerical flux at interface i
+            flux.mass     = 0.5 * (fL.mass + fR.mass)     - 0.5 * max_a * (ghost_grid[i + 1].mass     - ghost_grid[i].mass);
+            flux.mom      = 0.5 * (fL.mom + fR.mom)      - 0.5 * max_a * (ghost_grid[i + 1].mom      - ghost_grid[i].mom);
+            flux.energy   = 0.5 * (fL.energy + fR.energy) - 0.5 * max_a * (ghost_grid[i + 1].energy - ghost_grid[i].energy);
+        });
 
     // --- Step 4: Update interior cells using conservative flux difference ---
     // u_i^{n+1} = u_i^n - (dt/dx) * (F_{i+1/2} - F_{i-1/2})
     // where F_{i-1/2} = F[i],  F_{i+1/2} = F[i+1]
     // Ghost cell copy at boundaries means no artificial reflection occurs.
-    for (int i = 0; i < N_ZONES; ++i) {
-        next_grid[i].mass     = grid[i].mass     - dtdx * (F[i + 1].mass     - F[i].mass);
-        next_grid[i].mom      = grid[i].mom      - dtdx * (F[i + 1].mom      - F[i].mom);
-        next_grid[i].energy   = grid[i].energy   - dtdx * (F[i + 1].energy - F[i].energy);
-    }
+    std::for_each(std::execution::par_unseq, std::begin(next_grid), std::end(next_grid),
+        [&grid, &F, dtdx, &next_grid](Conserved& cell) {
+            // Compute cell index from pointer offset (next_grid is contiguous)
+            std::size_t i = &cell - next_grid.data();
+            cell.mass     = grid[i].mass     - dtdx * (F[i + 1].mass     - F[i].mass);
+            cell.mom      = grid[i].mom      - dtdx * (F[i + 1].mom      - F[i].mom);
+            cell.energy   = grid[i].energy   - dtdx * (F[i + 1].energy - F[i].energy);
+        });
 
     return next_grid;
 }

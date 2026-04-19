@@ -1,6 +1,8 @@
 # Build artifacts
 cmake-build-debug/
 build/
+build_serial/
+build_parallel/
 *.o
 *.a
 *.so
@@ -12,6 +14,11 @@ compile_commands.json
 *.ninja
 .ninja_deps
 .ninja_log
+
+# Benchmarks
+bench
+bench_report.json
+performance_metrics.txt
 
 # Python
 .venv/
