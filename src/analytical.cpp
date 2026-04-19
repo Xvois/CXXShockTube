@@ -1,9 +1,15 @@
 //
-// Created by Sonny Parker on 17/04/2026.
+// analytical.cpp
+//
+// Implements analytical solutions and helper functions for the shock tube
+// problems: sound speed, pressure function, star-pressure iteration via
+// Newton-Raphson, and exact solution sampling.
 //
 
-#include "../include/analytical.h"
-#include "../include/constants.h"
+#include "analytical.h"
+#include "constants.h"
+
+#include <cmath>
 
 double calculateSoundSpeed(const Primitive& w) {
     return std::sqrt(GAMMA * w.p / w.rho);

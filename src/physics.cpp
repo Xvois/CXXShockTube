@@ -1,9 +1,12 @@
 //
-// Created by Sonny Parker on 17/04/2026.
+// physics.cpp
+//
+// Implements primitive/conserved variable conversions and flux computation
+// for the ideal-gas Euler equations (gamma = 1.4).
 //
 
-#include "../include/constants.h"
-#include "../include/physics.h"
+#include "constants.h"
+#include "physics.h"
 
 
 // --- Physics Functions ---

@@ -1,8 +1,13 @@
 //
-// Problems.h
+// problems.h
 //
-// Defines initial conditions and geometry for Problem A (Cartesian) and Problem B (Spherical).
+// Declares initial condition generators and the spherical solver.
 //
+// Problem A: Cartesian shock tube with outflow boundaries.
+// Problem B: Spherical shock tube with geometric source terms
+//            and mixed boundary conditions.
+//
+
 #ifndef FLUIDSOLVER_PROBLEMS_H
 #define FLUIDSOLVER_PROBLEMS_H
 
@@ -11,25 +16,32 @@
 #include <vector>
 
 // --- Problem A: Cartesian Shock Tube ---
-// Left state (x < 0.3): rho=1, p=1, v=0.75
-// Right state (x > 0.3): rho=0.125, p=0.1, v=0
-// Snapshot at t = 0.2
 
+/**
+ * Initialise Problem A: Cartesian shock tube.
+ * Discontinuity at x = 0.3 with outflow boundaries at both ends.
+ */
 std::vector<Conserved> initialiseProblemA();
 
 // --- Problem B: Spherical Shock Tube ---
-// Left state (x < 0.4): rho=1, p=1, v=0
-// Right state (x > 0.4): rho=0.125, p=0.1, v=0
-// Snapshot at t = 0.25
-// Uses spherical symmetry with r-dependence
 
+/**
+ * Initialise Problem B: Spherical shock tube.
+ * Discontinuity at r = 0.4 with mixed boundaries:
+ *   reflecting (r = 0) and outflow (r = 1.0).
+ */
 std::vector<Conserved> initialiseProblemB();
 
-// --- Problem B: Spherical Update (with source terms) ---
-// Solves the spherical Euler equations with 1/r source term
-// Conserved form: U_t + F(U)_r = S(U, r)
-// where S = (-2*p/r, 0, 0) for spherical symmetry
+/**
+ * Solve the spherical Euler equations using operator-splitting:
+ *   1. Half-step of geometric source term S = (0, 2p/r, 0)
+ *   2. Full-step Lax-Friedrichs flux update
+ *   3. Remaining half-step of source term
+ *   4. Boundary conditions (v=0 at inner, outflow at outer)
+ *
+ * Second-order in time, first-order in space.
+ */
+std::vector<Conserved> updateSphericalLaxFriedrichs(
+    const std::vector<Conserved>& grid, double dt);
 
-std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>& grid, double dt);
-
-#endif //FLUIDSOLVER_PROBLEMS_H
+#endif // FLUIDSOLVER_PROBLEMS_H
