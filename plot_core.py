@@ -145,11 +145,20 @@ def compute_error_norms(final_df, exact_df, cols):
 
 
 def save_plot(fig, name, fmt="pdf"):
-    """Save plot in both pdf and png formats."""
+    """Save plot in both pdf and png formats.
+
+    PNG is always saved first to avoid Agg canvas corruption from
+    the PDF backend modifying the figure state.
+    """
     exts = [fmt]
     if fmt == "pdf":
-        exts = ["pdf", "png"]
+        exts = ["png", "pdf"]  # PNG first, then PDF
+
     for ext in exts:
         path = os.path.join(PROJECT_ROOT, f"{name}.{ext}")
-        fig.savefig(path, dpi=300 if ext == "png" else None)
+        if ext == "png":
+            fig.savefig(path, dpi=300, format="png")
+        else:
+            fig.savefig(path, bbox_inches="tight")
+
     plt.close(fig)
