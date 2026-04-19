@@ -39,7 +39,7 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
-#include <execution>
+#include <omp.h>
 
 // =========================================================================
 // Problem A: Cartesian Shock Tube
@@ -156,38 +156,29 @@ std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>
     std::vector<Conserved> next_grid = grid;
     double dtdx = dt / DX;
 
-    // --- Step 1: Apply source term at half-time step ---
+     // --- Step 1: Apply source term at half-time step ---
     // S = (0, 2*p/r, 0) applied at dt/2
     // Skip first cell (r ~ 0) to avoid division by zero.
-    // Sequential execution (std::execution::seq) applies source terms to all interior cells.
-    std::for_each(
-        std::execution::seq,
-        std::begin(next_grid) + 1, std::begin(next_grid) + N_ZONES - 1,
-        [&next_grid, dt](Conserved& cell) {
-            std::size_t i = &cell - next_grid.data();
-            Primitive w = consToPrim(cell);
-            double r = X_MIN + (i + 0.5) * DX;
-            if (r > 1e-10) {
-                double source_mom = 2.0 * w.p / r * 0.5 * dt;
-                cell.mom += source_mom;
-            }
-        });
+    // OpenMP parallel for applies source terms to all interior cells simultaneously.
+    #pragma omp parallel for
+    for (int i = 1; i < N_ZONES - 1; ++i) {
+        Primitive w = consToPrim(next_grid[i]);
+        double r = X_MIN + (i + 0.5) * DX;
+        if (r > 1e-10) {
+            double source_mom = 2.0 * w.p / r * 0.5 * dt;
+            next_grid[i].mom += source_mom;
+        }
+    }
 
     // --- Step 2: Compute maximum wave speed (Rusanov) using parallel reduction ---
-    // Use transform_reduce with:
-    // - binary op: std::max (combines two doubles)
-    // - unary transform: converts each zone to its signal speed
-    double max_a = std::transform_reduce(
-        std::execution::seq,
-        next_grid.begin(), next_grid.end(),
-        0.0,
-        [](double a, double b) { return std::max(a, b); },
-        [](const Conserved& zone) {
-            Primitive w = consToPrim(zone);
-            double c = calculateSoundSpeed(w);
-            return std::abs(w.v) + c;
-        }
-    );
+    double max_a = 0.0;
+    #pragma omp parallel for reduction(max:max_a)
+    for (int i = 0; i < (int)next_grid.size(); ++i) {
+        Primitive w = consToPrim(next_grid[i]);
+        double c = calculateSoundSpeed(w);
+        double speed = std::abs(w.v) + c;
+        if (speed > max_a) max_a = speed;
+    }
 
     // --- Step 3: Create ghost cells for outflow boundaries ---
     // Ghost cell at left (i=-1): copy cell 0
@@ -203,50 +194,39 @@ std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>
     ghost_grid[N_ZONES + 1] = next_grid[N_ZONES - 1];
 
    // --- Step 4: Compute Rusanov numerical fluxes at all N_ZONES+1 interfaces ---
-    // Sequential execution (std::execution::seq) computes fluxes at all interfaces.
+    // OpenMP parallel for computes fluxes at all interfaces simultaneously.
     std::vector<Conserved> F(N_ZONES + 1);
-    std::for_each(
-        std::execution::seq,
-        std::begin(F), std::end(F),
-        [&ghost_grid, &F, max_a](Conserved& flux) {
-            // Compute interface index from pointer offset (F is contiguous)
-            std::size_t i = &flux - F.data();
-            Primitive wL = consToPrim(ghost_grid[i]);
-            Primitive wR = consToPrim(ghost_grid[i + 1]);
-            Conserved fL = computeFlux(wL, ghost_grid[i]);
-            Conserved fR = computeFlux(wR, ghost_grid[i + 1]);
-            // Rusanov numerical flux at interface i
-            flux.mass     = 0.5 * (fL.mass + fR.mass)     - 0.5 * max_a * (ghost_grid[i + 1].mass     - ghost_grid[i].mass);
-            flux.mom      = 0.5 * (fL.mom + fR.mom)      - 0.5 * max_a * (ghost_grid[i + 1].mom      - ghost_grid[i].mom);
-            flux.energy   = 0.5 * (fL.energy + fR.energy) - 0.5 * max_a * (ghost_grid[i + 1].energy - ghost_grid[i].energy);
-        });
+    #pragma omp parallel for
+    for (int i = 0; i < (int)F.size(); ++i) {
+        Primitive wL = consToPrim(ghost_grid[i]);
+        Primitive wR = consToPrim(ghost_grid[i + 1]);
+        Conserved fL = computeFlux(wL, ghost_grid[i]);
+        Conserved fR = computeFlux(wR, ghost_grid[i + 1]);
+        // Rusanov numerical flux at interface i
+        F[i].mass     = 0.5 * (fL.mass + fR.mass)     - 0.5 * max_a * (ghost_grid[i + 1].mass     - ghost_grid[i].mass);
+        F[i].mom      = 0.5 * (fL.mom + fR.mom)      - 0.5 * max_a * (ghost_grid[i + 1].mom      - ghost_grid[i].mom);
+        F[i].energy   = 0.5 * (fL.energy + fR.energy) - 0.5 * max_a * (ghost_grid[i + 1].energy - ghost_grid[i].energy);
+    }
 
      // --- Step 5: Update interior cells using conservative flux difference ---
-    // Sequential execution (std::execution::seq) updates all cells.
-    std::for_each(
-        std::execution::seq,
-        std::begin(next_grid), std::end(next_grid),
-        [&grid, &F, dtdx, &next_grid](Conserved& cell) {
-            // Compute cell index from pointer offset (next_grid is contiguous)
-            std::size_t i = &cell - next_grid.data();
-            cell.mass     = grid[i].mass     - dtdx * (F[i + 1].mass     - F[i].mass);
-            cell.mom      = grid[i].mom      - dtdx * (F[i + 1].mom      - F[i].mom);
-            cell.energy   = grid[i].energy   - dtdx * (F[i + 1].energy - F[i].energy);
-        });
+    // OpenMP parallel for updates all cells simultaneously.
+    #pragma omp parallel for
+    for (int i = 0; i < (int)next_grid.size(); ++i) {
+        next_grid[i].mass     = grid[i].mass     - dtdx * (F[i + 1].mass     - F[i].mass);
+        next_grid[i].mom      = grid[i].mom      - dtdx * (F[i + 1].mom      - F[i].mom);
+        next_grid[i].energy   = grid[i].energy   - dtdx * (F[i + 1].energy - F[i].energy);
+    }
 
-// Sequential execution (std::execution::seq) applies remaining half-step source term.
-    std::for_each(
-        std::execution::seq,
-        std::begin(next_grid) + 1, std::begin(next_grid) + N_ZONES - 1,
-        [&next_grid, dt](Conserved& cell) {
-            std::size_t i = &cell - next_grid.data();
-            Primitive w = consToPrim(cell);
-            double r = X_MIN + (i + 0.5) * DX;
-            if (r > 1e-10) {
-                double source_mom = 2.0 * w.p / r * 0.5 * dt;
-                cell.mom += source_mom;
-            }
-        });
+// OpenMP parallel for applies remaining half-step source term.
+    #pragma omp parallel for
+    for (int i = 1; i < N_ZONES - 1; ++i) {
+        Primitive w = consToPrim(next_grid[i]);
+        double r = X_MIN + (i + 0.5) * DX;
+        if (r > 1e-10) {
+            double source_mom = 2.0 * w.p / r * 0.5 * dt;
+            next_grid[i].mom += source_mom;
+        }
+    }
 
     // --- Step 7: Apply boundary conditions ---
     // Inner boundary (r ~ 0): v=0 enforced as physical symmetry (no flow through origin).
