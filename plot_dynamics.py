@@ -1,4 +1,4 @@
-"""plot_dynamics.py — Physical state snapshots (ρ, v, p, e) at final time."""
+"""plot_dynamics.py — Physical state snapshots (rho, v, p, e) at final time."""
 
 import numpy as np
 from plot_core import (
@@ -7,30 +7,34 @@ from plot_core import (
 )
 
 COLOURS = {"A": "#2196F3", "B": "#FF9800", "exact": "black"}
-MARKERS = {"numerical": "-", "exact": "--"}
 
 
-def _plot_panel(ax, x, num, exact, xlabel, ylim, problem_label=""):
+def _plot_panel(ax, x, num, exact, ylabel, ylim, problem_label="",
+                show_legend=True, show_exact=True):
     """Draw one subplot: density, velocity, pressure, or internal energy."""
     num_col = {"density": "density", "velocity": "velocity",
-               "pressure": "pressure", "internal_energy": "internal_energy"}[xlabel]
+               "pressure": "pressure", "internal_energy": "internal_energy"}[ylabel]
     label = {"density": r"Density $\rho$", "velocity": r"Velocity $v$",
              "pressure": r"Pressure $p$",
-             "internal_energy": r"Specific Internal Energy $e$"}[xlabel]
+             "internal_energy": r"Specific Internal Energy $e$"}[ylabel]
 
-    ax.plot(x, num[num_col].values, COLOURS[problem_label],
-            MARKERS["numerical"], linewidth=1.8,
+    # Fix: pass color/format as keyword args, NOT positional
+    # (plot(x, y, color, linestyle) creates a phantom second series)
+    ax.plot(x, num[num_col].values, color=COLOURS[problem_label],
+            linestyle="-", linewidth=2, marker="o", markevery=15,
             label=f"{problem_label} numerical")
 
-    if exact is not None and len(exact) > 0:
+    if show_exact and exact is not None and len(exact) > 0:
         ax.plot(exact["x"].values, exact[num_col].values,
-                COLOURS["exact"], MARKERS["exact"], linewidth=1.5,
+                color=COLOURS["exact"], linestyle="--", linewidth=2,
+                marker="x", markevery=15,
                 label=f"{problem_label} exact")
 
-    ax.set_xlabel(f"Position $x$")
+    ax.set_xlabel("Position $x$")
     ax.set_ylabel(label)
     ax.set_ylim(ylim)
-    ax.legend(loc="best", frameon=True, fontsize=9)
+    if show_legend:
+        ax.legend(loc="best", frameon=False, fontsize=9)
 
 
 def generate():
@@ -40,18 +44,27 @@ def generate():
     exact_a = load_exact("exact_solution.csv")
     x_a = final_a["x"].values
 
+    ylabel_map = ["density", "velocity", "pressure", "internal_energy"]
+
     fig = plt.figure(figsize=(10, 8))
     gs = fig.add_gridspec(2, 2, hspace=0.35, wspace=0.30)
-    rows = [[0, 0], [0, 1], [1, 0], [1, 1]]
-    xlabel_map = ["density", "velocity", "pressure", "internal_energy"]
-    ylims = [(0.08, 1.2), (0, 0.9), (0.05, 1.2), (0, 4.5)]
 
-    for ax_i, (row, col), xlabel, ylim in zip(range(4), rows, xlabel_map, ylims):
+    for i, ylabel in enumerate(ylabel_map):
+        row, col = i // 2, i % 2
         ax = fig.add_subplot(gs[row, col])
-        _plot_panel(ax, x_a, final_a, exact_a, xlabel, ylim, "A")
+        num_col = ylabel
+        # Compute ylim from both numerical and exact if available
+        if exact_a is not None:
+            vmin = min(final_a[num_col].min(), exact_a[num_col].min())
+            vmax = max(final_a[num_col].max(), exact_a[num_col].max())
+        else:
+            vmin = final_a[num_col].min()
+            vmax = final_a[num_col].max()
+        margin = (vmax - vmin) * 0.08 if vmax > vmin else 0.1
+        ylim = (vmin - margin, vmax + margin)
+        _plot_panel(ax, x_a, final_a, exact_a, ylabel, ylim, "A",
+                    show_legend=(i == 0), show_exact=True)
 
-    fig.suptitle("Problem A: Cartesian Shock Tube — Final State ($t=0.2$)",
-                 fontsize=13, fontweight="bold", y=0.98)
     save_plot(fig, "12345_problemA_dynamics")
 
     # --- Problem B ---
@@ -60,14 +73,18 @@ def generate():
 
     fig = plt.figure(figsize=(10, 8))
     gs = fig.add_gridspec(2, 2, hspace=0.35, wspace=0.30)
-    ylims_b = [(0.08, 1.2), (0, 0.85), (0.05, 1.2), (0, 4.0)]
 
-    for ax_i, (row, col), xlabel, ylim in zip(range(4), rows, xlabel_map, ylims_b):
+    for i, ylabel in enumerate(ylabel_map):
+        row, col = i // 2, i % 2
         ax = fig.add_subplot(gs[row, col])
-        _plot_panel(ax, x_b, final_b, None, xlabel, ylim, "B")
+        num_col = ylabel
+        vmin = final_b[num_col].min()
+        vmax = final_b[num_col].max()
+        margin = (vmax - vmin) * 0.08 if vmax > vmin else 0.1
+        ylim = (vmin - margin, vmax + margin)
+        _plot_panel(ax, x_b, final_b, None, ylabel, ylim, "B",
+                    show_legend=(i == 0), show_exact=False)
 
-    fig.suptitle("Problem B: Spherical Shock Tube — Final State ($t=0.25$)",
-                 fontsize=13, fontweight="bold", y=0.98)
     save_plot(fig, "12345_problemB_dynamics")
 
     print("  ✓ Dynamics plots: problemA_dynamics, problemB_dynamics")

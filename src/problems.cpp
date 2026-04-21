@@ -1,37 +1,39 @@
-//
-// problems.cpp
-//
-// Implementation of Problem A (Cartesian shock tube) and Problem B
-// (Spherical shock tube) with spherical source terms.
-//
-// Problem A: Standard 1D Cartesian shock tube with outflow boundaries.
-// Problem B: Spherical shock tube with geometric source terms and mixed
-//            boundary conditions (reflecting inner, outflow outer).
-//
-// The spherical Euler equations in conservative form are:
-//   dU/dt + dF/dr = S
-//
-// where U = (rho, rho*v, E) is the vector of conserved variables,
-// F = (rho*v, rho*v^2 + p, v*(E + p)) is the flux vector, and
-// S is the geometric source vector arising from spherical symmetry.
-//
-// The correct source terms for spherical symmetry are derived from
-// the divergence operator in spherical coordinates:
-//   S = (2*rho*v/r, 2*p/r, 0)
-//
-// Physical interpretation:
-//   - S_mass = +2*rho*v/r: mass flows through expanding spherical surface
-//   - S_mom  = +2*p/r: pressure force from expanding geometry
-//   - S_energy = 0: energy is conserved (work done appears via momentum)
-//
-// Boundary conditions: reflecting wall at inner boundary (r=0, physical symmetry)
-// and outflow (non-reflecting) at outer boundary (r=1.0).
-// At r = 0 (inner boundary), the source terms are singular (0/0),
-// so we skip source term application at the first cell.
-// At r=0, v=0 is enforced as a physical symmetry condition (no flow through origin).
-// At the outer boundary, ghost cells copy the interior state to allow
-// the shock to exit freely without reflection.
-//
+/**
+ * @file problems.cpp
+ * @brief Implementation of Problem A (Cartesian shock tube) and Problem B
+ *        (Spherical shock tube) with spherical source terms.
+ *
+ * Problem A: Standard 1D Cartesian shock tube with outflow boundaries.
+ * Problem B: Spherical shock tube with geometric source terms and mixed
+ *            boundary conditions (reflecting inner, outflow outer).
+ *
+ * The spherical Euler equations in conservative form are:
+ *   dU/dt + dF/dr = S
+ *
+ * where U = (rho, rho*v, E) is the vector of conserved variables,
+ * F = (rho*v, rho*v^2 + p, v*(E + p)) is the flux vector, and
+ * S is the geometric source vector arising from spherical symmetry.
+ *
+ * The correct source terms for spherical symmetry are derived from
+ * the divergence operator in spherical coordinates:
+ *   S = (2*rho*v/r, 2*p/r, 0)
+ *
+ * Physical interpretation:
+ *   - S_mass = +2*rho*v/r: mass flows through expanding spherical surface
+ *   - S_mom  = +2*p/r: pressure force from expanding geometry
+ *   - S_energy = 0: energy is conserved (work done appears via momentum)
+ *
+ * Boundary conditions: reflecting wall at inner boundary (r=0, physical symmetry)
+ * and outflow (non-reflecting) at outer boundary (r=1.0).
+ * At r = 0 (inner boundary), the source terms are singular (0/0),
+ * so we skip source term application at the first cell.
+ * At r=0, v=0 is enforced as a physical symmetry condition (no flow through origin).
+ * At the outer boundary, ghost cells copy the interior state to allow
+ * the shock to exit freely without reflection.
+ *
+ * @note Problem B models the initial conditions of a supernova explosion:
+ *       a high-pressure core surrounded by low-density gas.
+ */
 
 #include "problems.h"
 #include "analytical.h"
@@ -43,12 +45,8 @@
 #include <omp.h>
 #endif
 
-// =========================================================================
-// Problem A: Cartesian Shock Tube
-// =========================================================================
-
 /**
- * Initializes Problem A: Cartesian shock tube.
+ * @brief Initialise Problem A: Cartesian shock tube.
  *
  * Discontinuity at x = 0.3:
  *   Left state (x < 0.3): rho = 1.0, v = 0.75, p = 1.0
@@ -58,6 +56,8 @@
  * Ghost cells copy the interior state so waves exit freely.
  *
  * Each zone is initialized with the cell-centered value.
+ *
+ * @return Grid state as a vector of conserved variables, one per zone.
  */
 std::vector<Conserved> initialiseProblemA() {
     std::vector<Conserved> grid(N_ZONES);
@@ -79,12 +79,8 @@ std::vector<Conserved> initialiseProblemA() {
     return grid;
 }
 
-// =========================================================================
-// Problem B: Spherical Shock Tube
-// =========================================================================
-
 /**
- * Initializes Problem B: Spherical shock tube.
+ * @brief Initialise Problem B: Spherical shock tube.
  *
  * Discontinuity at r = 0.4:
  *   Left state (r < 0.4): rho = 1.0, v = 0.0, p = 1.0
@@ -95,6 +91,8 @@ std::vector<Conserved> initialiseProblemA() {
  *
  * This models the initial conditions of a supernova explosion:
  * a high-pressure core surrounded by low-density gas.
+ *
+ * @return Grid state as a vector of conserved variables, one per zone.
  */
 std::vector<Conserved> initialiseProblemB() {
     std::vector<Conserved> grid(N_ZONES);
@@ -116,12 +114,8 @@ std::vector<Conserved> initialiseProblemB() {
     return grid;
 }
 
-// =========================================================================
-// Spherical Solver: Lax-Friedrichs with Conservative Source Terms
-// =========================================================================
-
 /**
- * Solves the spherical Euler equations using an operator-splitting scheme.
+ * @brief Solves the spherical Euler equations using an operator-splitting scheme.
  *
  * The spherical Euler equations in conservative form are:
  *   dU/dt + dF/dr = S
@@ -133,7 +127,7 @@ std::vector<Conserved> initialiseProblemB() {
  * We use Strang splitting (symmetric operator splitting):
  *   1. Apply half-step of source term: U* = U^n + (dt/2) * S(U^n)
  *   2. Apply full-step of flux update: U** = U* - dt * dF/dr (conservative LF)
- *   3. Apply remaining half-step of source term: U^{n+1} = U** + (dt/2) * S(U**)
+ *   3. Apply remaining half-step of source term: U^{n+1} = U** + (dt/2) * S(U**))
  *   4. Apply boundary conditions: v=0 at inner boundary (physical symmetry),
  *      outflow at outer boundary (ghost cell copy).
  *
@@ -150,9 +144,9 @@ std::vector<Conserved> initialiseProblemB() {
  *   - Outer boundary (r=1.0): outflow (non-reflecting).
  * At r = 0 (first cell), source terms are skipped to avoid 0/0 singularity.
  *
- * @param grid  Current conserved variable state
- * @param dt    Timestep (must satisfy CFL condition)
- * @return      Updated conserved variable state
+ * @param grid  Current conserved variable state.
+ * @param dt    Timestep (must satisfy CFL condition).
+ * @return      Updated conserved variable state.
  */
 std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>& grid, double dt) {
     std::vector<Conserved> next_grid = grid;
@@ -245,7 +239,7 @@ std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>
     // Outer boundary (r ~ 1.0): outflow — no modification needed (ghost cell copy).
     //
     // Process for inner boundary only:
-    //   1. Convert conserved → primitive (get v, ρ, p)
+    //   1. Convert conserved → primitive (get v, rho, p)
     //   2. Set v = 0 (physical symmetry at origin)
     //   3. Recompute pressure from internal energy
     //   4. Floor pressure if negative

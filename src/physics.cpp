@@ -1,16 +1,35 @@
-//
-// physics.cpp
-//
-// Implements primitive/conserved variable conversions and flux computation
-// for the ideal-gas Euler equations (gamma = 1.4).
-//
+/**
+ * @file physics.cpp
+ * @brief Implements primitive/conserved variable conversions and flux computation
+ *        for the ideal-gas Euler equations (gamma = 1.4).
+ *
+ * The Euler equations describe conservation of mass, momentum, and energy
+ * for an inviscid (non-viscous) compressible fluid:
+ *   dU/dt + dF/dx = 0
+ *
+ * where U = (rho, rho*v, E) is the vector of conserved variables and
+ * F = (rho*v, rho*v^2 + p, v*(E + p)) is the flux vector.
+ *
+ * For an ideal gas with adiabatic exponent gamma:
+ *   E = p/(gamma-1) + 0.5*rho*v^2   (thermal + kinetic energy)
+ *   p = (gamma-1)*(E - 0.5*rho*v^2)  (pressure from energy equation)
+ */
 
 #include "constants.h"
 #include "physics.h"
 
 
-// --- Physics Functions ---
-
+/**
+ * @brief Convert primitive variables to conserved variables.
+ *
+ * Applies the ideal-gas relations:
+ *   mass   = rho
+ *   mom    = rho * v
+ *   energy = p/(gamma-1) + 0.5*rho*v^2
+ *
+ * @param prim Input primitive variables (rho, v, p).
+ * @return Conserved variables (mass, mom, energy).
+ */
 Conserved primToCons(const Primitive& prim) {
     Conserved cons{};
     cons.mass = prim.rho;
@@ -19,6 +38,17 @@ Conserved primToCons(const Primitive& prim) {
     return cons;
 }
 
+/**
+ * @brief Convert conserved variables to primitive variables.
+ *
+ * Inverts the primToCons relations:
+ *   rho = mass
+ *   v   = mom / rho
+ *   p   = (gamma-1) * (energy - 0.5*rho*v^2)
+ *
+ * @param u Input conserved variables (mass, mom, energy).
+ * @return Primitive variables (rho, v, p).
+ */
 Primitive consToPrim(const Conserved& u) {
     Primitive w;
     w.rho = u.mass;
@@ -27,6 +57,19 @@ Primitive consToPrim(const Conserved& u) {
     return w;
 }
 
+/**
+ * @brief Compute the flux vector for the Euler equations.
+ *
+ * The flux is evaluated as F(U) using the primitive state w and
+ * conserved state u:
+ *   F_mass   = u.mom              (momentum carries mass)
+ *   F_mom    = u.mom * w.v + w.p  (convective momentum + pressure)
+ *   F_energy = w.v * (E + p)       (advective enthalpy flux)
+ *
+ * @param w Primitive state (used for pressure).
+ * @param u Conserved state (used for convective fluxes).
+ * @return Flux vector F = (mass_flux, momentum_flux, energy_flux).
+ */
 Conserved computeFlux(const Primitive& w, const Conserved& u) {
     Conserved flux{};
     flux.mass = u.mom;

@@ -1,18 +1,35 @@
-//
-// main.cpp
-//
-// Fluid dynamics solver for PH30110 Computational Astrophysics.
-// Solves Euler equations for:
-//   Problem A: Cartesian shock tube (standard test case)
-//   Problem B: Spherical shock tube (supernova remnant)
-//
-// Uses Lax-Friedrichs scheme with operator splitting for spherical geometry.
-// Boundary conditions: outflow (non-reflecting) for Problem A,
-// mixed reflecting/outflow for Problem B.
-//
-// Outputs CSV data to the directory containing the executable,
-// ensuring files are found regardless of CWD or build directory name.
-//
+/**
+ * @file main.cpp
+ * @brief Fluid dynamics solver for PH30110 Computational Astrophysics.
+ *
+ * Solves the 1D Euler equations for two shock tube test cases:
+ *   Problem A: Cartesian shock tube (standard test case, Woodward-Colella)
+ *   Problem B: Spherical shock tube (supernova remnant model)
+ *
+ * Numerical methods:
+ *   - Lax-Friedrichs scheme with Rusanov flux for spatial discretization
+ *   - Strang operator splitting for spherical geometric source terms
+ *   - CFL-limited timestep for stability
+ *
+ * Boundary conditions:
+ *   - Problem A: outflow (non-reflecting) at both ends
+ *   - Problem B: mixed — reflecting wall at r=0, outflow at r=1.0
+ *
+ * Output: CSV files containing simulation snapshots and conservation
+ * diagnostics. All output files are placed in the directory containing
+ * the executable, ensuring files are found regardless of CWD or
+ * build directory name.
+ *
+ * Parallel execution: Problems A and B are solved concurrently using
+ * std::async (one std::thread per problem).
+ *
+ * Compile and run:
+ *   g++ -std=c++20 -O2 -fopenmp -o fluid_solver main.cpp src/*.cpp
+ *   ./fluid_solver
+ *
+ * @note This is a fixed-grid solver with N_ZONES = 100 zones.
+ *       Grid refinement requires recompilation.
+ */
 
 #include <iostream>
 #include <string>
@@ -32,9 +49,21 @@
 namespace fs = std::filesystem;
 
 /**
- * Resolve the directory where the executable lives.
- * Works on Linux/macOS (via argv[0]) and Windows.
+ * @brief Resolve the directory where the executable lives.
+ *
+ * Works on Linux/macOS (via argv[0] and /proc/self/exe) and Windows.
  * Falls back to "." (CWD) if the path cannot be resolved.
+ *
+ * Algorithm:
+ *   1. Get argv[0] as the initial path candidate.
+ *   2. If argv[0] contains no path separator, try /proc/self/exe (Linux).
+ *   3. Extract the parent directory using std::filesystem.
+ *   4. Return "." if parent is empty or ".".
+ *
+ * @param argc Argument count (unused except for checking argc > 0).
+ * @param argv Argument vector (argv[0] contains the executable path).
+ * @return Directory path string. Returns "." if the executable directory
+ *         cannot be determined.
  */
 std::string resolve_exec_dir(int argc, char* argv[]) {
     std::string exe_path;
@@ -60,6 +89,20 @@ std::string resolve_exec_dir(int argc, char* argv[]) {
     return dir.string();
 }
 
+/**
+ * @brief Main entry point: run Problem A and Problem B in parallel.
+ *
+ * Steps:
+ *   1. Resolve output directory relative to executable location.
+ *   2. Set output file paths for both problems.
+ *   3. Launch Problem A solver on std::async (creates a new thread).
+ *   4. Launch Problem B solver on std::async (creates a new thread).
+ *   5. Wait for both to complete and print summary.
+ *
+ * @param argc Argument count (expected to be >= 1).
+ * @param argv Argument vector (argv[0] contains executable path).
+ * @return 0 on success.
+ */
 int main(int argc, char* argv[]) {
     // Resolve output directory relative to executable location
     std::string exec_dir = resolve_exec_dir(argc, argv);

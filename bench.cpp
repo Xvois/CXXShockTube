@@ -1,13 +1,28 @@
-//
-// bench.cpp
-//
-// Performance benchmark: sequential vs parallel execution.
-// Compares wall-clock times for Problem A and Problem B solvers
-// using the serial (build_serial) and parallel (build_parallel) builds.
-//
-// Compile standalone:
-//   g++ -std=c++20 -O2 bench.cpp -o bench
-//
+/**
+ * @file bench.cpp
+ * @brief Performance benchmark: sequential vs parallel execution.
+ *
+ * Compares wall-clock times for Problem A and Problem B solvers
+ * using the serial (build_serial) and parallel (build_parallel) builds.
+ *
+ * Benchmark methodology:
+ *   - Run each problem 5 times and compute statistics (mean, median, min,
+ *     max, standard deviation, coefficient of variation).
+ *   - Warm-up run included to exclude JIT/OS caching effects.
+ *   - Parallel mode: Problems A and B run simultaneously via std::async.
+ *   - Speedup = (sequential total time) / (parallel combined time).
+ *
+ * Compile standalone:
+ *   g++ -std=c++20 -O2 bench.cpp -o bench
+ *
+ * Output:
+ *   - Console summary of timing results
+ *   - performance_metrics.txt with detailed statistics
+ *
+ * @note This file is standalone and does not require OpenMP. It calls
+ *       the problem solver functions from the main library, which
+ *       use OpenMP parallel loops internally.
+ */
 
 #include <iostream>
 #include <fstream>
@@ -24,21 +39,43 @@
 #include "constants.h"
 #include "solver.h"
 
-// =========================================================================
-// Timing utilities
-// =========================================================================
-
+/**
+ * @brief Statistics from a timing benchmark.
+ *
+ * Computes mean, median, min, max, standard deviation, and
+ * coefficient of variation (CV = stddev/mean * 100%) over N runs.
+ * CV < 5% indicates consistent timing; CV > 10% suggests
+ * system noise or variable workloads.
+ */
 struct BenchResult {
+    /** Mean runtime in milliseconds. */
     double mean_ms{0};
+    /** Median runtime in milliseconds. */
     double median_ms{0};
+    /** Minimum runtime in milliseconds. */
     double min_ms{1e30};
+    /** Maximum runtime in milliseconds. */
     double max_ms{-1};
+    /** Standard deviation in milliseconds. */
     double stddev_ms{0};
+    /** Coefficient of variation in percent (stddev/mean * 100). */
     double cv_pct{0};
+    /** Number of benchmark iterations. */
     int iterations{0};
 };
 
-/** Run the benchmark N times and compute statistics. */
+/**
+ * @brief Run the benchmark N times and compute statistics.
+ *
+ * Algorithm:
+ *   1. Warm-up run (discarded): func("bench_warmup.csv")
+ *   2. N timed runs: func("bench_iter_<i>.csv"), record wall-clock time
+ *   3. Compute mean, median, min, max, stddev, and CV
+ *
+ * @param func Function pointer to the solver function (e.g., solveProblemA).
+ * @param n_iters Number of benchmark iterations (default: 5).
+ * @return BenchResult with computed statistics.
+ */
 BenchResult run_benchmark(void (*func)(const std::string&), int n_iters = 5) {
     std::vector<double> times;
     times.reserve(n_iters);
@@ -86,10 +123,16 @@ BenchResult run_benchmark(void (*func)(const std::string&), int n_iters = 5) {
     return result;
 }
 
-// =========================================================================
-// Main benchmarking logic
-// =========================================================================
-
+/**
+ * @brief Main entry point: run all benchmarks and print results.
+ *
+ * Benchmark order:
+ *   1. Sequential: solveProblemA and solveProblemB separately, 5 iterations each
+ *   2. Parallel (std::async): A and B run simultaneously, 5 iterations
+ *   3. Compute speedup and efficiency
+ *
+ * @return 0 on success.
+ */
 int main() {
     const int N_ITERS = 5;
     

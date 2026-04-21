@@ -11,20 +11,24 @@ import matplotlib.pyplot as plt
 
 plt.rcParams.update({
     "font.family": "DejaVu Sans",
-    "font.size": 10,
+    "font.size": 11,
     "axes.labelsize": 11,
     "axes.titlesize": 12,
     "legend.fontsize": 9,
-    "xtick.labelsize": 9,
-    "ytick.labelsize": 9,
-    "axes.grid": True,
+    "xtick.labelsize": 10,
+    "ytick.labelsize": 10,
+    "axes.grid": False,
     "axes.axisbelow": True,
     "axes.spines.top": False,
     "axes.spines.right": False,
-    "lines.linewidth": 1.5,
-    "figure.dpi": 300,
+    "lines.linewidth": 2,
+    "lines.markersize": 8,
+    "figure.dpi": 100,
     "savefig.bbox": "tight",
-    "savefig.pad_inches": 0.15,
+    "savefig.pad_inches": 0.1,
+    # Ensure RGB (not palette) PNG output
+    "image.cmap": "viridis",
+    "savefig.dpi": 300,
 })
 
 GAMMA = 1.4
@@ -149,6 +153,8 @@ def save_plot(fig, name, fmt="pdf"):
 
     PNG is always saved first to avoid Agg canvas corruption from
     the PDF backend modifying the figure state.
+
+    Uses explicit RGBA conversion to avoid palette (color_type=8) PNG issue.
     """
     exts = [fmt]
     if fmt == "pdf":
@@ -157,8 +163,14 @@ def save_plot(fig, name, fmt="pdf"):
     for ext in exts:
         path = os.path.join(PROJECT_ROOT, f"{name}.{ext}")
         if ext == "png":
-            fig.savefig(path, dpi=300, format="png")
+            # Force RGBA to avoid palette PNGs (color_type=8)
+            fig.set_facecolor("white")
+            for child in fig.get_children():
+                if hasattr(child, 'set_facecolor'):
+                    child.set_facecolor("white")
+            fig.savefig(path, dpi=300, format="png", transparent=False,
+                        facecolor="white", edgecolor="none")
         else:
-            fig.savefig(path, bbox_inches="tight")
+            fig.savefig(path, bbox_inches="tight", facecolor=fig.get_facecolor())
 
     plt.close(fig)

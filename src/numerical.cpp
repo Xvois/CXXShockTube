@@ -1,13 +1,33 @@
-//
-// numerical.cpp
-//
-// Implements the conservative Lax-Friedrichs time-stepping scheme for the
-// Euler equations on a 1D grid with outflow (non-reflecting) boundaries.
-//
-// The scheme is fully conservative: mass, momentum, and energy are conserved
-// for waves that remain within the computational domain. Waves reaching the
-// boundaries exit freely via ghost cell copy.
-//
+/**
+ * @file numerical.cpp
+ * @brief Implements the conservative Lax-Friedrichs time-stepping scheme for the
+ *        Euler equations on a 1D grid with outflow (non-reflecting) boundaries.
+ *
+ * Numerical methods:
+ *
+ *   CFL-limited timestep:
+ *     dt <= CFL_NUMBER * dx / max(|v| + c)
+ *   where c = sqrt(gamma * p / rho) is the local sound speed.
+ *   This ensures the numerical domain of dependence contains the physical
+ *   domain of dependence for stability.
+ *
+ *   Rusanov (Lax-Friedrichs) numerical flux at interface i+1/2:
+ *     F_{i+1/2} = 0.5*(F(u_i) + F(u_{i+1})) - 0.5*max_a*(u_{i+1} - u_i)
+ *   where max_a = max(|v| + c) over all cells. The second term is artificial
+ *   viscosity that damps oscillations near shocks.
+ *
+ *   Conservative update:
+ *     u_i^{n+1} = u_i^n - (dt/dx) * (F_{i+1/2} - F_{i-1/2})
+ *   This form guarantees exact conservation of mass, momentum, and energy
+ *   (up to roundoff) for waves remaining within the domain.
+ *
+ *   Boundary conditions: outflow (non-reflecting) via ghost cell copy.
+ *   Ghost cells copy the interior state so waves exit freely.
+ *
+ * @note OpenMP parallelisation is applied to the CFL computation, flux
+ *       computation, and cell update when available. This provides
+ *       speedup on multi-core systems.
+ */
 
 #include "numerical.h"
 #include "analytical.h"
@@ -18,12 +38,9 @@
 #if OPENMP_AVAILABLE
 #include <omp.h>
 #endif
-// =========================================================================
-// CFL-limited timestep calculation
-// =========================================================================
 
 /**
- * Computes the maximum allowable timestep from the CFL condition.
+ * @brief Computes the maximum allowable timestep from the CFL condition.
  *
  * Uses OpenMP parallel reduction (reduction(max:max_speed)) to compute signal
  * speeds across all zones simultaneously, then takes the maximum.
@@ -33,8 +50,10 @@
  * where max_signal_speed = max(|v| + c) over all zones,
  * and c = sqrt(gamma * p / rho) is the local sound speed.
  *
- * Returns the maximum stable dt. If max_signal_speed is zero
- * (trivially at rest), returns a safe default (1.0).
+ * @param grid Current grid state (conserved variables).
+ * @return The maximum stable timestep dt. Returns 1.0 if max_signal_speed is zero
+ *         (trivially at rest).
+ * @note Uses OpenMP parallel reduction when compiled with OpenMP support.
  */
 double calculateTimeStep(const std::vector<Conserved>& grid) {
     double max_speed = 0.0;
@@ -59,12 +78,9 @@ double calculateTimeStep(const std::vector<Conserved>& grid) {
     return CFL_NUMBER * DX / max_speed;
 }
 
-// =========================================================================
-// Conservative Lax-Friedrichs update with outflow boundary conditions
-// =========================================================================
-
 /**
- * Advances the grid by one timestep using the conservative Lax-Friedrichs scheme.
+ * @brief Advances the grid by one timestep using the conservative Lax-Friedrichs
+ *        scheme with outflow (non-reflecting) boundaries.
  *
  * Algorithm (conservative interface flux form with outflow boundaries):
  *   1. Create ghost cells at both ends by copying interior states.
@@ -72,9 +88,10 @@ double calculateTimeStep(const std::vector<Conserved>& grid) {
  *      Right ghost cell: identical state to cell N-1.
  *      This implements outflow (non-reflecting) boundaries — waves that
  *      reach a boundary simply leave the domain without reflection.
- *   2. Compute primitive variables and Rusanov numerical fluxes at all interfaces.
+ *   2. Compute maximum wave speed (Rusanov) max_a = max(|v| + c).
+ *   3. Compute Rusanov numerical fluxes at all interfaces:
  *      F_{i+1/2} = 0.5*(F(u_i) + F(u_{i+1})) - 0.5*max_a*(u_{i+1} - u_i)
- *   3. Update all interior cells: u_i^{n+1} = u_i^n - (dt/dx)*(F_{i+1/2} - F_{i-1/2})
+ *   4. Update all interior cells: u_i^{n+1} = u_i^n - (dt/dx)*(F_{i+1/2} - F_{i-1/2})
  *      The ghost cell copy ensures no artificial reflection at boundaries.
  *
  * Conservation properties (outflow boundaries):
@@ -82,9 +99,12 @@ double calculateTimeStep(const std::vector<Conserved>& grid) {
  *   - Momentum: conserved (no spurious wall forces)
  *   - Energy: conserved (no artificial conversion at walls)
  *
- * @param grid  Current conserved variable state
- * @param dt    Timestep (must satisfy CFL condition)
- * @return      Updated conserved variable state
+ * The scheme is first-order accurate in space but unconditionally stable
+ * for linear advection and robust near shocks due to artificial viscosity.
+ *
+ * @param grid  Current conserved variable state.
+ * @param dt    Timestep (must satisfy CFL condition).
+ * @return      Updated conserved variable state.
  */
 std::vector<Conserved> updateLaxFriedrichs(const std::vector<Conserved>& grid, double dt) {
     std::vector<Conserved> next_grid = grid;
