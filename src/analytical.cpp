@@ -155,10 +155,6 @@ Primitive sampleExactSolution(const Primitive& L, const Primitive& R, double x_i
     if (s < v_star) { // Left of contact discontinuity
         if (p_star <= L.p) {
             // Left wave is a rarefaction fan
-            double cs_star = std::sqrt(GAMMA * p_star / L.rho); // Sound speed in star region
-            // Actually need to compute the correct sound speed for rarefaction
-            // The rarefaction fan spans from s = v_L - c_L to s = v_star
-            // Within the fan, velocity varies linearly with s
             double s_left = L.v - cs_l;  // Head of rarefaction fan
             double s_right = v_star;     // Tail of fan (contact discontinuity)
 
@@ -179,7 +175,6 @@ Primitive sampleExactSolution(const Primitive& L, const Primitive& R, double x_i
                 w.v = v_star;
                 w.p = p_star;
                 // Compute density from isentropic relation
-                double cs_star = std::sqrt(GAMMA * p_star / L.rho);
                 w.rho = L.rho * std::pow(p_star / L.p, 1.0 / GAMMA);
                 return w;
             }
@@ -188,14 +183,11 @@ Primitive sampleExactSolution(const Primitive& L, const Primitive& R, double x_i
             // Compute shock speed using Rankine-Hugoniot
             double A = 2.0 / ((GAMMA + 1.0) * L.rho);
             double B = (GAMMA - 1.0) / (GAMMA + 1.0) * L.p;
-            double s_shock = L.v + std::sqrt((p_star - L.p) * A / (1 + (p_star + B) / (L.p * (GAMMA + 1.0))));
-            // Simplified: shock speed from RH relations
-            double s_shock_simplified = L.v + std::sqrt((p_star - L.p) / (L.rho * (1.0 + (GAMMA + 1.0)/(2.0*GAMMA)*(p_star/L.p - 1.0))));
+            double s_shock = L.v + std::sqrt((p_star - L.p) * A / (1.0 + (p_star + B) / (L.p * (GAMMA + 1.0))));
 
-            if (s < s_shock_simplified) {
+            if (s < s_shock) {
                 // Before shock — undisturbed left state
-                Primitive w = L;
-                return w;
+                return L;
             } else {
                 // After shock — region 2 (star region left side)
                 Primitive w{};
@@ -215,8 +207,7 @@ Primitive sampleExactSolution(const Primitive& L, const Primitive& R, double x_i
 
             if (s > s_right) {
                 // After the fan — undisturbed right state
-                Primitive w = R;
-                return w;
+                return R;
             } else if (s > s_left) {
                 // Inside the rarefaction fan — interpolate
                 Primitive w{};
@@ -235,15 +226,14 @@ Primitive sampleExactSolution(const Primitive& L, const Primitive& R, double x_i
             }
         } else {
             // Right wave is a shock
-            // Compute shock speed
+            // Compute shock speed using Rankine-Hugoniot
             double A = 2.0 / ((GAMMA + 1.0) * R.rho);
             double B = (GAMMA - 1.0) / (GAMMA + 1.0) * R.p;
-            double s_shock_simplified = R.v + std::sqrt((p_star - R.p) / (R.rho * (1.0 + (GAMMA + 1.0)/(2.0*GAMMA)*(p_star/R.p - 1.0))));
+            double s_shock = R.v + std::sqrt((p_star - R.p) * A / (1.0 + (p_star + B) / (R.p * (GAMMA + 1.0))));
 
-            if (s > s_shock_simplified) {
+            if (s > s_shock) {
                 // After shock — undisturbed right state
-                Primitive w = R;
-                return w;
+                return R;
             } else {
                 // Before shock — region 3 (star region right side)
                 Primitive w{};

@@ -21,6 +21,8 @@
 #ifndef FLUIDSOLVER_SOLVER_H
 #define FLUIDSOLVER_SOLVER_H
 
+namespace fluidsolver {}
+
 #include <string>
 #include <vector>
 #include "physics.h"
@@ -93,5 +95,7 @@ void solveProblemA(const std::string& outputFilename, const std::string& exactOu
  * @param outputFilename    Path for the simulation CSV output file.
  */
 void solveProblemB(const std::string& outputFilename);
+
+} // namespace fluidsolver
 
 #endif // FLUIDSOLVER_SOLVER_H

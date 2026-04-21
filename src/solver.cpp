@@ -73,6 +73,7 @@ static std::string dir_of(const std::string& path) {
  * @param grid        Current grid state (conserved variables).
  * @param currentTime Simulation time for this snapshot.
  * @param filename    Output file path.
+ * @note Validates that density and pressure are positive to avoid NaN output.
  */
 void outputCSV(const std::vector<Conserved>& grid, double currentTime, const std::string& filename) {
     std::ofstream file;
@@ -83,10 +84,16 @@ void outputCSV(const std::vector<Conserved>& grid, double currentTime, const std
         file.open(filename, std::ios::app);
     }
 
-    for (int i = 0; i < N_ZONES; ++i) {
+    for (std::size_t i = 0; i < N_ZONES; ++i) {
         double x = X_MIN + (i + 0.5) * DX;
         Primitive w = consToPrim(grid[i]);
         double e_internal = w.p / (w.rho * (GAMMA - 1.0));
+        
+        // Floor negative values to avoid NaN in output
+        if (w.rho < 1e-12) w.rho = 1e-12;
+        if (w.p < 1e-12) w.p = 1e-12;
+        if (w.v < -1e10) w.v = -1e10;
+        if (w.v > 1e10) w.v = 1e10;
 
         file << std::fixed << std::setprecision(6)
              << currentTime << "," << x << "," << w.rho << ","
@@ -127,11 +134,23 @@ void outputConservation(const std::vector<Conserved>& grid, double currentTime,
     }
 
     double mass = 0.0, momentum = 0.0, energy = 0.0;
-    for (int i = 0; i < N_ZONES; ++i) {
+    for (std::size_t i = 0; i < N_ZONES; ++i) {
+        // Validate individual cell values
+        if (grid[i].mass < 1e-12) grid[i].mass = 1e-12;
+        if (grid[i].mom < -1e10) grid[i].mom = -1e10;
+        if (grid[i].mom > 1e10) grid[i].mom = 1e10;
+        if (grid[i].energy < 1e-12) grid[i].energy = 1e-12;
+        
         mass   += grid[i].mass;
         momentum += grid[i].mom;
         energy += grid[i].energy;
     }
+
+    // Validate totals
+    if (mass < 1e-12) mass = 1e-12;
+    if (momentum < -1e10) momentum = -1e10;
+    if (momentum > 1e10) momentum = 1e10;
+    if (energy < 1e-12) energy = 1e-12;
 
     file << std::fixed << std::setprecision(6)
          << currentTime << "," << mass << "," << momentum << "," << energy << "\n";

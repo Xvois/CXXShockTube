@@ -17,22 +17,42 @@
 #ifndef FLUIDSOLVER_CONSTANTS_H
 #define FLUIDSOLVER_CONSTANTS_H
 
+namespace fluidsolver {
+
 /** Adiabatic exponent for a monatomic ideal gas (gamma = 1.4). */
-const double GAMMA  = 1.4;
+constexpr double GAMMA  = 1.4;
 
 /** Number of computational zones across the domain. */
-const int    N_ZONES = 100;
+constexpr int    N_ZONES = 100;
 
 /** Domain lower bound (x_min). */
-const double X_MIN   = 0.0;
+constexpr double X_MIN   = 0.0;
 
 /** Domain upper bound (x_max). */
-const double X_MAX   = 1.0;
+constexpr double X_MAX   = 1.0;
 
 /** Zone width: dx = (x_max - x_min) / N_ZONES = 0.01. */
-const double DX      = (X_MAX - X_MIN) / N_ZONES;
+constexpr double DX      = (X_MAX - X_MIN) / N_ZONES;
 
-/** CFL stability number. Timestep dt = CFL * dx / max_signal_speed. */
-const double CFL_NUMBER = 0.5;
+/** CFL stability number. Timestep dt = CFL_NUMBER * dx / max_signal_speed. */
+constexpr double CFL_NUMBER = 0.5;
+
+/** Minimum density threshold to avoid division by zero. */
+constexpr double MIN_DENSITY = 1e-12;
+
+/** Minimum pressure threshold to avoid numerical issues. */
+constexpr double MIN_PRESSURE = 1e-12;
+
+/** Small epsilon for floating-point comparisons. */
+constexpr double EPSILON = 1e-10;
+
+/** Enable OpenMP parallelization. */
+#if defined(_OPENMP)
+    #define OPENMP_AVAILABLE 1
+#else
+    #define OPENMP_AVAILABLE 0
+#endif
+
+} // namespace fluidsolver
 
 #endif // FLUIDSOLVER_CONSTANTS_H

@@ -59,14 +59,14 @@ double calculateTimeStep(const std::vector<Conserved>& grid) {
     double max_speed = 0.0;
 #if OPENMP_AVAILABLE
     #pragma omp parallel for reduction(max:max_speed)
-    for (int i = 0; i < (int)grid.size(); ++i) {
+    for (std::size_t i = 0; i < grid.size(); ++i) {
         Primitive w = consToPrim(grid[i]);
         double cs = calculateSoundSpeed(w);
         double speed = std::abs(w.v) + cs;
         if (speed > max_speed) max_speed = speed;
     }
 #else
-    for (int i = 0; i < (int)grid.size(); ++i) {
+    for (std::size_t i = 0; i < grid.size(); ++i) {
         Primitive w = consToPrim(grid[i]);
         double cs = calculateSoundSpeed(w);
         double speed = std::abs(w.v) + cs;
@@ -116,7 +116,7 @@ std::vector<Conserved> updateLaxFriedrichs(const std::vector<Conserved>& grid, d
     // contains the same state as the adjacent interior cell, so the Rusanov
     // flux naturally carries the wave outward.
     std::vector<Conserved> ghost_grid(N_ZONES + 2);
-    for (int i = 0; i < N_ZONES; ++i) {
+    for (std::size_t i = 0; i < N_ZONES; ++i) {
         ghost_grid[i + 1] = grid[i];  // ghost_grid[1..N_ZONES] = grid[0..N-1]
     }
     // Left ghost cell (i=0): copy state from cell 0 → outflow
@@ -128,7 +128,7 @@ std::vector<Conserved> updateLaxFriedrichs(const std::vector<Conserved>& grid, d
 
     // --- Step 2: Compute maximum wave speed (Rusanov) ---
     double max_a = 0.0;
-    for (int i = 0; i < N_ZONES; ++i) {
+    for (std::size_t i = 0; i < N_ZONES; ++i) {
         Primitive w = consToPrim(grid[i]);
         double c = calculateSoundSpeed(w);
         double a = std::abs(w.v) + c;
@@ -143,7 +143,7 @@ std::vector<Conserved> updateLaxFriedrichs(const std::vector<Conserved>& grid, d
 #if OPENMP_AVAILABLE
     #pragma omp parallel for
 #endif
-    for (int i = 0; i < (int)F.size(); ++i) {
+    for (std::size_t i = 0; i < F.size(); ++i) {
         Primitive wL = consToPrim(ghost_grid[i]);
         Primitive wR = consToPrim(ghost_grid[i + 1]);
         Conserved fL = computeFlux(wL, ghost_grid[i]);
@@ -161,7 +161,7 @@ std::vector<Conserved> updateLaxFriedrichs(const std::vector<Conserved>& grid, d
 #if OPENMP_AVAILABLE
     #pragma omp parallel for
 #endif
-    for (int i = 0; i < (int)next_grid.size(); ++i) {
+    for (std::size_t i = 0; i < next_grid.size(); ++i) {
         next_grid[i].mass     = grid[i].mass     - dtdx * (F[i + 1].mass     - F[i].mass);
         next_grid[i].mom      = grid[i].mom      - dtdx * (F[i + 1].mom      - F[i].mom);
         next_grid[i].energy   = grid[i].energy   - dtdx * (F[i + 1].energy - F[i].energy);
