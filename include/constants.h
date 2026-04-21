@@ -46,13 +46,6 @@ constexpr double MIN_PRESSURE = 1e-12;
 /** Small epsilon for floating-point comparisons. */
 constexpr double EPSILON = 1e-10;
 
-/** Enable OpenMP parallelization. */
-#if defined(_OPENMP)
-    #define OPENMP_AVAILABLE 1
-#else
-    #define OPENMP_AVAILABLE 0
-#endif
-
 } // namespace fluidsolver
 
 #endif // FLUIDSOLVER_CONSTANTS_H

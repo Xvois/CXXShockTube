@@ -40,25 +40,24 @@
 #include <cmath>
 #include <filesystem>
 #include <future>
-#include <unistd.h>
 #include "constants.h"
 #include "solver.h"
 #include "analytical.h"
 #include "problems.h"
+
+using fluidsolver::solveProblemA;
+using fluidsolver::solveProblemB;
+using fluidsolver::N_ZONES;
+using fluidsolver::GAMMA;
+using fluidsolver::DX;
+using fluidsolver::CFL_NUMBER;
 
 namespace fs = std::filesystem;
 
 /**
  * @brief Resolve the directory where the executable lives.
  *
- * Works on Linux/macOS (via argv[0] and /proc/self/exe) and Windows.
  * Falls back to "." (CWD) if the path cannot be resolved.
- *
- * Algorithm:
- *   1. Get argv[0] as the initial path candidate.
- *   2. If argv[0] contains no path separator, try /proc/self/exe (Linux).
- *   3. Extract the parent directory using std::filesystem.
- *   4. Return "." if parent is empty or ".".
  *
  * @param argc Argument count (unused except for checking argc > 0).
  * @param argv Argument vector (argv[0] contains the executable path).
@@ -66,23 +65,14 @@ namespace fs = std::filesystem;
  *         cannot be determined.
  */
 std::string resolve_exec_dir(int argc, char* argv[]) {
-    std::string exe_path;
-    if (argc > 0 && argv[0] != nullptr) {
-        exe_path = argv[0];
+    if (argc == 0 || argv[0] == nullptr) {
+        return ".";
     }
-    // If argv[0] is just a name (no /), the executable is in PATH or CWD
-    if (exe_path.find('/') == std::string::npos && exe_path.find('\\') == std::string::npos) {
-        // Try /proc/self/exe on Linux
-#ifdef __linux__
-        char buf[4096];
-        ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-        if (len > 0) {
-            exe_path = std::string(buf, len);
-        }
-#endif
-    }
+
+    std::string exe_path = argv[0];
     fs::path p(exe_path);
     fs::path dir = p.parent_path();
+
     if (dir.empty() || dir == ".") {
         return ".";
     }
@@ -113,11 +103,12 @@ int main(int argc, char* argv[]) {
     std::cout << "CFL Number = " << CFL_NUMBER << std::endl;
     std::cout << std::endl;
 
-    std::string outputA = exec_dir + "/12345_problemA_results.csv";
-    std::string outputB = exec_dir + "/12345_problemB_results.csv";
-    std::string consA   = exec_dir + "/conservation_12345_problemA.csv";
-    std::string consB   = exec_dir + "/conservation_12345_problemB.csv";
-    std::string exactA  = exec_dir + "/exact_solution.csv";
+    // Output filenames (simplified)
+    std::string outputA = exec_dir + "/shock_A.csv";
+    std::string outputB = exec_dir + "/shock_B.csv";
+    std::string exactA  = exec_dir + "/exact_A.csv";
+    std::string consA   = exec_dir + "/conservation_A.csv";
+    std::string consB   = exec_dir + "/conservation_B.csv";
 
     // Solve Problems A and B in parallel using std::async.
     // Each problem is independent, so they can run concurrently on separate threads.

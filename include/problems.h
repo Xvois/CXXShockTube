@@ -30,9 +30,11 @@
 #ifndef FLUIDSOLVER_PROBLEMS_H
 #define FLUIDSOLVER_PROBLEMS_H
 
+#include <vector>
 #include "physics.h"
 #include "constants.h"
-#include <vector>
+
+namespace fluidsolver {
 
 /**
  * @brief Initialise Problem A: Cartesian shock tube.
@@ -83,5 +85,7 @@ std::vector<Conserved> initialiseProblemB();
  */
 std::vector<Conserved> updateSphericalLaxFriedrichs(
     const std::vector<Conserved>& grid, double dt);
+
+}  // namespace fluidsolver
 
 #endif // FLUIDSOLVER_PROBLEMS_H

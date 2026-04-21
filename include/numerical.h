@@ -30,6 +30,8 @@
 #include "physics.h"
 #include "constants.h"
 
+namespace fluidsolver {
+
 /**
  * @brief Computes the maximum allowable timestep from the CFL condition.
  *
@@ -71,5 +73,7 @@ double calculateTimeStep(const std::vector<Conserved>& grid);
  * @note Ghost cells at i=-1 and i=N_ZONES are created by copying i=0 and i=N_ZONES-1.
  */
 std::vector<Conserved> updateLaxFriedrichs(const std::vector<Conserved>& grid, double dt);
+
+}  // namespace fluidsolver
 
 #endif // FLUIDSOLVER_NUMERICAL_H

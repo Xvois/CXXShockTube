@@ -34,10 +34,13 @@
 
 #include <cmath>
 #include <algorithm>
+#include <vector>
 
 #if OPENMP_AVAILABLE
 #include <omp.h>
 #endif
+
+namespace fluidsolver {
 
 /**
  * @brief Computes the maximum allowable timestep from the CFL condition.
@@ -169,3 +172,5 @@ std::vector<Conserved> updateLaxFriedrichs(const std::vector<Conserved>& grid, d
 
     return next_grid;
 }
+
+}  // namespace fluidsolver

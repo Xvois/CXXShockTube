@@ -7,15 +7,13 @@
  * Problem B (Spherical).
  *
  * Output files:
- *   - Problem A results:  {exec_dir}/12345_problemA_results.csv
- *   - Problem B results:  {exec_dir}/12345_problemB_results.csv
- *   - Conservation A:     {exec_dir}/conservation_12345_problemA.csv
- *   - Conservation B:     {exec_dir}/conservation_12345_problemB.csv
- *   - Exact solution A:   {exec_dir}/exact_solution.csv
+ *   - Simulation A:       {exec_dir}/shock_A.csv
+ *   - Simulation B:       {exec_dir}/shock_B.csv
+ *   - Exact solution A:   {exec_dir}/exact_A.csv
+ *   - Conservation A:     {exec_dir}/conservation_A.csv
+ *   - Conservation B:     {exec_dir}/conservation_B.csv
  *
- * All output files are placed in the directory containing the executable,
- * not the working directory. This ensures files are found regardless of
- * CWD or build directory name.
+ * All output files are placed in the executable directory.
  *
  * Problems A and B are solved in parallel using std::async.
  *
@@ -40,6 +38,8 @@
 #include "analytical.h"
 
 namespace fs = std::filesystem;
+
+namespace fluidsolver {
 
 /**
  * @brief Extract the directory component from a file path.
@@ -135,15 +135,17 @@ void outputConservation(const std::vector<Conserved>& grid, double currentTime,
 
     double mass = 0.0, momentum = 0.0, energy = 0.0;
     for (std::size_t i = 0; i < N_ZONES; ++i) {
-        // Validate individual cell values
-        if (grid[i].mass < 1e-12) grid[i].mass = 1e-12;
-        if (grid[i].mom < -1e10) grid[i].mom = -1e10;
-        if (grid[i].mom > 1e10) grid[i].mom = 1e10;
-        if (grid[i].energy < 1e-12) grid[i].energy = 1e-12;
+        double m = grid[i].mass;
+        double mom = grid[i].mom;
+        double e = grid[i].energy;
+        if (m < 1e-12) m = 1e-12;
+        if (mom < -1e10) mom = -1e10;
+        if (mom > 1e10) mom = 1e10;
+        if (e < 1e-12) e = 1e-12;
         
-        mass   += grid[i].mass;
-        momentum += grid[i].mom;
-        energy += grid[i].energy;
+        mass   += m;
+        momentum += mom;
+        energy += e;
     }
 
     // Validate totals
@@ -338,3 +340,5 @@ void solveProblemB(const std::string& outputFilename) {
     std::cout << "  Final t value: " << t << std::endl;
     std::cout << "  Data saved to " << outputFilename << std::endl;
 }
+
+}  // namespace fluidsolver

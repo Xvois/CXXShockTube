@@ -41,6 +41,9 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+
+namespace fluidsolver {
+
 #if OPENMP_AVAILABLE
 #include <omp.h>
 #endif
@@ -253,3 +256,5 @@ std::vector<Conserved> updateSphericalLaxFriedrichs(const std::vector<Conserved>
 
     return next_grid;
 }
+
+}  // namespace fluidsolver

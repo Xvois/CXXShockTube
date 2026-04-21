@@ -18,18 +18,8 @@
 #include "constants.h"
 #include "physics.h"
 
+namespace fluidsolver {
 
-/**
- * @brief Convert primitive variables to conserved variables.
- *
- * Applies the ideal-gas relations:
- *   mass   = rho
- *   mom    = rho * v
- *   energy = p/(gamma-1) + 0.5*rho*v^2
- *
- * @param prim Input primitive variables (rho, v, p).
- * @return Conserved variables (mass, mom, energy).
- */
 /**
  * @brief Convert primitive variables to conserved variables.
  *
@@ -45,7 +35,7 @@ Conserved primToCons(const Primitive& prim) {
     Conserved cons{};
     cons.mass = prim.rho;
     cons.mom = prim.rho * prim.v;
-    cons.energy = prim.p / (GAMMA - 1.0) + 0.5 * prim.rho * prim.v * prim.v;
+    cons.energy = prim.p / (fluidsolver::GAMMA - 1.0) + 0.5 * prim.rho * prim.v * prim.v;
     return cons;
 }
 
@@ -70,32 +60,7 @@ Primitive consToPrim(const Conserved& u) {
     Primitive w;
     w.rho = u.mass;
     w.v = u.mom / u.mass;
-    w.p = (GAMMA - 1.0) * (u.energy - 0.5 * w.rho * w.v * w.v);
-    return w;
-}
-
-/**
- * @brief Convert conserved variables to primitive variables.
- *
- * Inverts the primToCons relations:
- *   rho = mass
- *   v   = mom / rho
- *   p   = (gamma-1) * (energy - 0.5*rho*v^2)
- *
- * @param u Input conserved variables (mass, mom, energy).
- * @return Primitive variables (rho, v, p).
- * @note Returns zero state if mass <= MIN_DENSITY to avoid division by zero.
- */
-Primitive consToPrim(const Conserved& u) {
-    // Check for zero or near-zero mass to avoid division by zero
-    if (u.mass <= 1e-12) {
-        return {0.0, 0.0, 0.0};
-    }
-    
-    Primitive w;
-    w.rho = u.mass;
-    w.v = u.mom / u.mass;
-    w.p = (GAMMA - 1.0) * (u.energy - 0.5 * w.rho * w.v * w.v);
+    w.p = (fluidsolver::GAMMA - 1.0) * (u.energy - 0.5 * w.rho * w.v * w.v);
     return w;
 }
 
@@ -119,3 +84,5 @@ Conserved computeFlux(const Primitive& w, const Conserved& u) {
     flux.energy = w.v * (u.energy + w.p);
     return flux;
 }
+
+}  // namespace fluidsolver

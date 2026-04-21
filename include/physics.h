@@ -31,7 +31,7 @@
 #ifndef FLUIDSOLVER_PHYSICS_H
 #define FLUIDSOLVER_PHYSICS_H
 
-namespace fluidsolver {}
+namespace fluidsolver {
 
 /**
  * @brief Primitive variables: density (rho), velocity (v), pressure (p).
@@ -104,6 +104,9 @@ Primitive consToPrim(const Conserved& u);
  */
 Conserved computeFlux(const Primitive& w, const Conserved& u);
 
-} // namespace fluidsolver
+}  // namespace fluidsolver
 
-#endif // FLUIDSOLVER_PHYSICS_H
+using fluidsolver::Primitive;
+using fluidsolver::Conserved;
+
+#endif  // FLUIDSOLVER_PHYSICS_H

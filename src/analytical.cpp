@@ -25,6 +25,8 @@
 
 #include <cmath>
 
+namespace fluidsolver {
+
 /**
  * @brief Compute the local sound speed.
  *
@@ -246,3 +248,5 @@ Primitive sampleExactSolution(const Primitive& L, const Primitive& R, double x_i
         }
     }
 }
+
+}  // namespace fluidsolver

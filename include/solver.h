@@ -21,11 +21,11 @@
 #ifndef FLUIDSOLVER_SOLVER_H
 #define FLUIDSOLVER_SOLVER_H
 
-namespace fluidsolver {}
-
 #include <string>
 #include <vector>
 #include "physics.h"
+
+namespace fluidsolver {
 
 /**
  * @brief Writes simulation data to a CSV file.

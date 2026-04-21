@@ -29,6 +29,10 @@
 #include "constants.h"
 #include "physics.h"
 
+namespace fluidsolver {
+
+using fluidsolver::GAMMA;
+
 /**
  * @brief Compute the local sound speed.
  *
@@ -111,5 +115,7 @@ double findStarPressure(const Primitive& L, const Primitive& R);
  */
 Primitive sampleExactSolution(const Primitive& L, const Primitive& R,
                               double x_initial, double x_current, double t);
+
+}  // namespace fluidsolver
 
 #endif // FLUIDSOLVER_ANALYTICAL_H
